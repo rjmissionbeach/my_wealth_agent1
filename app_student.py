@@ -1,3 +1,7 @@
+
+app_student.py
+
+100%
 """
 app_student.py
 ===============
@@ -94,16 +98,24 @@ def run_agent(client: dict, api_key: str, model: str):
         #    turn back. If it produced any reasoning text, yield it as a
         #    "reasoning" log entry (type="reasoning", content=<the text>,
         #    step=step + 1).
-        #
-        # TODO: call call_model(...) and yield the reasoning text if present
-        turn = None  # <-- replace this
+        turn = call_model(
+            messages=messages,
+            system_prompt=system_prompt,
+            api_key=api_key,
+            model=model,
+            tools=TOOL_SPEC,
+        )
+        if turn.get("content"):
+            yield {"type": "reasoning", "content": turn["content"], "step": step + 1}
 
         # 2. Did the model decide it's done, or does it want to ACT (call a
         #    tool)? Check turn["tool_calls"]. If it's empty, the model is
         #    finished: yield a "final" entry with its text as content, and
         #    return from the generator (stop the loop).
-        #
-        # TODO: if there are no tool calls, yield final and return
+        tool_calls = turn.get("tool_calls") or []
+        if not tool_calls:
+            yield {"type": "final", "content": turn.get("content"), "step": step + 1}
+            return
 
         # 3. ACT: for each requested tool call in turn["tool_calls"], pull out
         #    its arguments (tool_call["arguments"]), yield a "tool_call" log
@@ -116,12 +128,21 @@ def run_agent(client: dict, api_key: str, model: str):
         # 4. OBSERVE: package the result using build_tool_result_messages(...)
         #    and append the returned messages to `messages`, so the next loop
         #    iteration's call_model() sees what happened.
-        #
-        # TODO: loop over turn["tool_calls"], run each tool, yield tool_call
-        #       and tool_result entries, and extend `messages` with the
-        #       result messages
+        for tool_call in tool_calls:
+            args = tool_call["arguments"]
+            yield {"type": "tool_call", "content": args, "step": step + 1}
 
-        pass  # <-- remove this once you've filled in steps 3-4
+            result = run_full_simulation(
+                **args,
+                age=client["age"],
+                risk_tolerance=client["risk_tolerance"],
+                target_amount=client["target_amount"],
+                current_savings=client["current_savings"],
+                n_trials=client["n_trials"],
+            )
+            yield {"type": "tool_result", "content": result, "step": step + 1}
+
+            messages.extend(build_tool_result_messages(turn, tool_call, result))
 
         # 5. REPEAT: loop back to step 1 with the updated conversation history.
         #    (No code needed here — this just happens because it's a `for` loop.)
@@ -238,3 +259,4 @@ if run_clicked:
     if final_answer:
         st.subheader("Final recommendation")
         st.success(final_answer)
+Displaying app_student.py.
